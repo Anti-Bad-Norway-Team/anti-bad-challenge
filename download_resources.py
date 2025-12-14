@@ -49,6 +49,8 @@ DATASET_DOWNLOADS = [
     # Classification Track
     ("anti-bad-challenge/dev_classification_task1", "classification-track/data/task1"),
     ("anti-bad-challenge/dev_classification_task2", "classification-track/data/task2"),
+    # <guru> additional dataset for task 1
+    ("stanfordnlp/sst2", "classification-track/data/task1/sst2"),
 
     # Generation Track
     ("anti-bad-challenge/dev_generation_task1", "generation-track/data/task1"),
