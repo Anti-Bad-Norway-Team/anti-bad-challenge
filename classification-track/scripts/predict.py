@@ -10,6 +10,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import random
+import re
+import unicodedata
 from pathlib import Path
 from typing import List, Tuple
 
@@ -228,6 +231,9 @@ def load_model_and_tokenizer(
     logging.info("Loading LoRA adapter...")
     model = PeftModel.from_pretrained(model, model_path)
 
+    # # (guru) Disable adapters by default
+    # model.disable_adapter()  # Disable adapters by default
+
     # Ensure pad token ID is set in model config
     model.config.pad_token_id = tokenizer.pad_token_id
 
@@ -237,6 +243,38 @@ def load_model_and_tokenizer(
 
     return model, tokenizer
 
+# === BEGIN GURU'S EDITS ===
+# Guru's function to sanitize input for backdoor defense
+def sanitize_for_backdoor_defense(text: str) -> str:
+    '''Sanitize input text to mitigate backdoor triggers.'''
+    text = unicodedata.normalize("NFKC", text)
+
+    # invisible char removal
+    INVISIBLE = ["\u200b","\u200c","\u200d","\ufeff","\u2060","\u180e"]
+    for ch in INVISIBLE:
+        text = text.replace(ch, "")
+
+    # collapse repeating punctuation
+    text = re.sub(r"([!?.,;:])\1{2,}", r"\1", text)
+
+    # collapse whitespace
+    text = re.sub(r"\s+", " ", text).strip()
+
+    # LIGHT RANDOMIZATION (kills most triggers)
+    if random.random() < 0.15:
+        # drop a random word
+        words = text.split()
+        if len(words) > 4:
+            drop_idx = random.randint(0, len(words)-1)
+            words.pop(drop_idx)
+            text = " ".join(words)
+
+    if random.random() < 0.15:
+        # insert extra space (break multi-token triggers)
+        text = text.replace(" ", "  ", 1)
+
+    return text
+# === END GURU'S EDITS ===
 
 def predict(args: argparse.Namespace) -> None:
     """Generate predictions for the input dataset."""
@@ -252,6 +290,10 @@ def predict(args: argparse.Namespace) -> None:
 
     # Load test data
     test_data = load_jsonl(Path(args.input_path))
+
+    print("Sample test data:")
+    print(test_data[:3])
+
     logging.info(f"\nLoaded {len(test_data)} test samples")
 
     # Load model and tokenizer
@@ -275,7 +317,12 @@ def predict(args: argparse.Namespace) -> None:
         # Process in batches
         for i in tqdm(range(0, len(test_data), args.batch_size), desc="Predicting"):
             batch_data = test_data[i:i + args.batch_size]
-            batch_sentences = [item['sentence'] for item in batch_data]
+
+            # <guru> Sanitize input sentences here
+            # ==============================
+            # batch_sentences = [item['sentence'] for item in batch_data]
+            batch_sentences = [sanitize_for_backdoor_defense(item['sentence']) for item in batch_data]
+            # ==============================
 
             # Tokenize
             inputs = tokenizer(
@@ -315,9 +362,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input_path", required=True, help="Input JSONL file")
     parser.add_argument("--task", type=int, required=True, choices=[1, 2], help="Task number (1 or 2)")
     parser.add_argument("--output_path", default=None, help="Output CSV file (default: ../../submission/cls_task{task}.csv)")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size for inference")
+    parser.add_argument("--batch_size", type=int, default=64, help="Batch size for inference")
     parser.add_argument("--use_quantization", action="store_true", help="Enable quantization")
-    parser.add_argument("--quantization_bits", type=int, default=16, choices=[4, 8, 16], help="Quantization bits")
+    parser.add_argument("--quantization_bits", type=int, default=32, choices=[4, 8, 16], help="Quantization bits")
     args = parser.parse_args()
 
     # Set default output path if not provided

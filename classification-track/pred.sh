@@ -22,7 +22,10 @@ MODEL_ID=${2:-"model1"}
 # NOTE: Models are LoRA adapters trained for sequence classification
 # Base model will be auto-detected from adapter_config.json
 # You can override MODEL_PATH environment variable to use a custom model
-MODEL_PATH=${MODEL_PATH:-"./models/task${TASK_ID}/${MODEL_ID}"}
+
+# MODEL_PATH=${MODEL_PATH:-"./models/task${TASK_ID}/${MODEL_ID}"}
+# <guru> Using purified LoRA model for inference
+MODEL_PATH=${MODEL_PATH:-"./purified_lora"}
 
 # Test data path
 TEST_PATH="./data/task${TASK_ID}/test.json"
@@ -47,6 +50,7 @@ echo "Classification Track - Prediction"
 echo "=========================================="
 echo "Task: ${TASK_ID}"
 echo "Model: ${MODEL_ID}"
+echo "Model Path: ${MODEL_PATH}"
 echo "Input: ${TEST_PATH}"
 echo "Output: ../submission/cls_task${TASK_ID}.csv"
 echo "=========================================="
